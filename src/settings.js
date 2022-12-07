@@ -27,6 +27,7 @@ export const ENJIN_APP_ID = +enjin_app_id
 export const REDIS_SENTINEL_PORT = +redis_sentinel_port
 export const PLAYER_ENTITY_ID = 0
 export const PLAYER_INVENTORY_ID = 0
+export const PLAYER_LOOTCHEST_ID = 2
 export const SERVER_UUID = '00000000000000000000000000000000'
 export const USE_RESSOURCE_PACK = booleanify(use_ressource_pack)
 

@@ -7,13 +7,13 @@ import UUID from 'uuid-1345'
 import { abortable } from '../iterator.js'
 import { distance3d_squared } from '../math.js'
 import { block_position_equal } from '../position.js'
-import { VERSION, PLAYER_ENTITY_ID } from '../settings.js'
+import { VERSION, PLAYER_ENTITY_ID, PLAYER_LOOTCHEST_ID } from '../settings.js'
 import { item_to_slot } from '../items.js'
 import { Action, Context } from '../events.js'
 import items from '../../data/items.json' assert { type: 'json' }
 import { to_metadata } from '../entity_metadata.js'
 
-import { USABLE_INVENTORY_START, USABLE_INVENTORY_END } from './inventory.js'
+import { USABLE_INVENTORY_START, USABLE_INVENTORY_END, to_slot } from './inventory.js'
 
 const { entitiesByName } = minecraft_data(VERSION)
 
@@ -34,8 +34,8 @@ function spawn_item_entity({ client, entity_id, item, world }) {
     objectUUID: UUID.v4(),
     type: entitiesByName.item.id,
     x: item.position.x,
-    y: item.position.y,
-    z: item.position.z,
+    y : item.position.y,
+    z : item.position.z,
     yaw: 0,
     pitch: 0,
     objectData: 1,
@@ -57,6 +57,9 @@ export default {
   /** @type {import('../context.js').Reducer} */
   reduce(state, { type, payload }) {
     if (type === Action.LOOT_ITEM) {
+
+      const empty_lootchest_slot = state.lootchest.findIndex(item => item == null )
+
       const { type, count, position } = payload
       const cursor = (state.looted_items.cursor + 1) % ITEM_LOOT_MAX_COUNT
       const pool = [
@@ -74,14 +77,14 @@ export default {
       const position = state.looted_items.pool.indexOf(payload)
       if (position === -1) return state
 
-      const compatible_inventory_slot = state.inventory.findIndex(
+      const compatible_lootchest_slot = state.lootchest.findIndex(
         (item, slot) =>
           item?.type === payload.type &&
           slot >= USABLE_INVENTORY_START &&
           slot <= USABLE_INVENTORY_END
       )
 
-      const empty_inventory_slot = state.inventory.findIndex(
+      const empty_lootchest_slot = state.lootchest.findIndex(
         (item, slot) =>
           item == null &&
           slot >= USABLE_INVENTORY_START &&
@@ -89,12 +92,12 @@ export default {
       )
 
       // Item go in priority into a compatible slot
-      const inventory_slot =
-        compatible_inventory_slot === -1
-          ? empty_inventory_slot
-          : compatible_inventory_slot
+      const lootchest_slot =
+        compatible_lootchest_slot === -1
+          ? empty_lootchest_slot
+          : compatible_lootchest_slot
 
-      if (inventory_slot !== -1) {
+      if (lootchest_slot !== -1) {
         const { type, count } = state.looted_items.pool[position]
         return {
           ...state,
@@ -106,13 +109,13 @@ export default {
               ...state.looted_items.pool.slice(position + 1),
             ],
           },
-          inventory: [
-            ...state.inventory.slice(0, inventory_slot),
+          lootchest: [
+            ...state.lootchest.slice(0, lootchest_slot),
             {
               type,
-              count: count + (state.inventory[inventory_slot]?.count ?? 0),
+              count: count + (state.lootchest[lootchest_slot]?.count ?? 0),
             },
-            ...state.inventory.slice(inventory_slot + 1),
+            ...state.lootchest.slice(lootchest_slot + 1),
           ],
           inventory_sequence_number: state.inventory_sequence_number + 1,
         }
@@ -121,7 +124,7 @@ export default {
     return state
   },
   /** @type {import('../context.js').Observer} */
-  observe({ client, events, signal, dispatch, world }) {
+  observe({ client, events, signal, dispatch, world , get_state}) {
     aiter(abortable(on(events, Context.STATE, { signal })))
       .map(([{ looted_items }]) => looted_items)
       .reduce((last_looted_items, looted_items) => {
@@ -136,11 +139,10 @@ export default {
 
           // If the cursor didn't changed it's an item pickup
           if (looted_items.cursor === last_looted_items.cursor) {
-            for (const { item, index } of removed) {
-              client.write('collect', {
-                collectedEntityId: world.item_loot_start_id + index,
-                collectorEntityId: PLAYER_ENTITY_ID,
-                pickupItemCount: item.count,
+            for (const { item, index } of removed) {          
+              client.write('window_items', {
+                windowId: PLAYER_LOOTCHEST_ID,
+                items: get_state().lootchest.map(to_slot)
               })
             }
           }

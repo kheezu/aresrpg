@@ -15,6 +15,7 @@ import msg from './msg.js'
 import enjin from './enjin.js'
 import health from './health.js'
 import experience from './experience.js'
+import lootchest from './lootchest.js'
 
 export function write_error({ sender }) {
   sender.write('chat', {
@@ -91,7 +92,9 @@ export default function execute_command({
     case 'experience':
       experience(command)
       break
-
+    case 'lootchest':
+      lootchest(command)
+      break
     default:
       sender.write('chat', {
         message: JSON.stringify({
